@@ -12,6 +12,7 @@ header {
   transform: translate(-50%, -50%);
   z-index: 1;
   color: #ffffff;
+  align: center;
 }
 
 #particles-js {
