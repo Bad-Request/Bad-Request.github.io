@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notification API Demo</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 50px; background-color: #f4f4f9; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: inline-block; }
+        .status { margin: 20px 0; font-weight: bold; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; border: none; border-radius: 4px; transition: 0.3s; }
+        .btn-request { background-color: #3498db; color: white; }
+        .btn-virus { background-color: #e74c3c; color: white; margin-top: 10px; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>Browser Notification Tester</h1>
+        
+        <div id="support-status" class="status">Checking support...</div>
+        
+        <button id="request-btn" class="btn-request">Enable Notifications</button>
+        <br>
+        <button id="virus-btn" class="btn-virus" disabled>🚨 Generate Virus Warning</button>
+        
+        <p id="permission-text">Current Permission: <span id="perm-value">Unknown</span></p>
+    </div>
+
+    <script>
+        const supportStatus = document.getElementById('support-status');
+        const requestBtn = document.getElementById('request-btn');
+        const virusBtn = document.getElementById('virus-btn');
+        const permValue = document.getElementById('perm-value');
+
+        // 1. Check for Support
+        if (!("Notification" in window)) {
+            supportStatus.innerText = "❌ Notifications NOT supported in this browser.";
+            supportStatus.style.color = "red";
+            requestBtn.disabled = true;
+        } else {
+            supportStatus.innerText = "✅ Notifications are supported!";
+            supportStatus.style.color = "green";
+            updatePermissionLabel();
+        }
+
+        function updatePermissionLabel() {
+            permValue.innerText = Notification.permission;
+            if (Notification.permission === "granted") {
+                virusBtn.disabled = false;
+                requestBtn.innerText = "Permission Granted";
+                requestBtn.disabled = true;
+            }
+        }
+
+        // 2. Request Permission
+        requestBtn.addEventListener('click', () => {
+            Notification.requestPermission().then(permission => {
+                updatePermissionLabel();
+                if (permission === "granted") {
+                    new Notification("Success!", { body: "You will now receive notifications." });
+                }
+            });
+        });
+
+        // 3. Generate Fake Warning
+        virusBtn.addEventListener('click', () => {
+            const options = {
+                body: "CRITICAL: 13 Viruses detected! Action required immediately to protect your files.",
+                icon: "https://cdn-icons-png.flaticon.com/512/753/753345.png", // Red warning icon
+                tag: "virus-alert" // "tag" prevents multiple notifications from stacking
+            };
+
+            new Notification("SYSTEM SECURITY ALERT", options);
+        });
+    </script>
+</body>
+</html>
