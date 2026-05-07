@@ -46,7 +46,8 @@
         const scheduleStatus = document.getElementById('schedule-status');
         const promptGuidance = document.getElementById('prompt-guidance');
 
-        const iconUrl = "https://cdn-icons-png.flaticon.com/512/753/753345.png";
+        const warningIconUrl = "https://cdn-icons-png.flaticon.com/512/753/753345.png";
+        const successIconUrl = "https://cdn-icons-png.flaticon.com/512/190/190411.png";
         const serviceWorkerSupported = 'serviceWorker' in navigator;
         let swReady = false;
         let scheduledTag = null;
@@ -157,11 +158,11 @@
                 });
         }
 
-        function showNotification({ title, body, tag }) {
+        function showNotification({ title, body, tag, icon = warningIconUrl, badge = warningIconUrl }) {
             return new Notification(title, {
                 body,
-                icon: iconUrl,
-                badge: iconUrl,
+                icon,
+                badge,
                 tag,
                 renotify: true
             });
@@ -255,7 +256,9 @@
                         showNotification({
                             title: 'Success!',
                             body: 'You will now receive notifications.',
-                            tag: 'permission-granted'
+                            tag: 'permission-granted',
+                            icon: successIconUrl,
+                            badge: successIconUrl
                         });
                     });
                 }
