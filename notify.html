@@ -21,17 +21,18 @@
         
         <div id="support-status" class="status">Checking support...</div>
         
-        <button id="request-btn" class="btn-request">Enable Notifications</button>
-        <br>
-        <button id="virus-btn" class="btn-virus" disabled>🚨 Generate Virus Warning</button>
-        <br>
-        <button id="schedule-btn" class="btn-virus" disabled>⏱️ Schedule 30s Alert</button>
-        <br>
-        <button id="cancel-btn" class="btn-request" disabled>✖️ Cancel Scheduled Alert</button>
+        <p><button id="request-btn" class="btn-request">Enable Notifications</button></p>
+        
+        <p><button id="virus-btn" class="btn-virus" disabled>🚨 Generate Virus Warning</button></p>
+        
+        <p><button id="schedule-btn" class="btn-virus" disabled>⏱️ Schedule 30s Alert</button></p>
+        
+        <p><button id="cancel-btn" class="btn-request" disabled>✖️ Cancel Scheduled Alert</button></p>
         
         <p id="permission-text">Current Permission: <span id="perm-value">Unknown</span></p>
         <p id="sw-status">Service worker status will appear here.</p>
         <p id="schedule-status">No scheduled background alert.</p>
+        <p id="prompt-guidance" style="margin-top:1rem;color:#333;font-style:italic"></p>
     </div>
 
     <script>
@@ -43,11 +44,13 @@
         const permValue = document.getElementById('perm-value');
         const swStatus = document.getElementById('sw-status');
         const scheduleStatus = document.getElementById('schedule-status');
+        const promptGuidance = document.getElementById('prompt-guidance');
 
         const iconUrl = "https://cdn-icons-png.flaticon.com/512/753/753345.png";
         const serviceWorkerSupported = 'serviceWorker' in navigator;
         let swReady = false;
         let scheduledTag = null;
+        let promptRequested = false;
 
         const virusWarnings = [
             {
@@ -94,6 +97,45 @@
 
             scheduleStatus.innerText = scheduledTag ? 'Scheduled background alert pending in 30 seconds.' : 'No scheduled background alert.';
             scheduleStatus.style.color = scheduledTag ? 'darkorange' : 'black';
+            if (promptRequested && Notification.permission === 'default') {
+                setPromptGuidance(Notification.permission);
+            } else {
+                promptGuidance.innerText = '';
+            }
+        }
+
+        function getBrowserPromptLocation() {
+            const ua = navigator.userAgent;
+            if (/Chrome|Chromium|Edg\//i.test(ua)) {
+                return 'near the address bar, usually at the top right of the browser window';
+            }
+            if (/Firefox\//i.test(ua)) {
+                return 'as a notification panel near the address bar or toolbar';
+            }
+            if (/Safari\//i.test(ua) && !/Chrome|Chromium|Edg\//i.test(ua)) {
+                return 'in the Smart Search field at the top of the browser window';
+            }
+            if (/OPR\//i.test(ua) || /Opera\//i.test(ua)) {
+                return 'in the browser toolbar or address area';
+            }
+            return 'in the browser UI, usually near the address bar or toolbar';
+        }
+
+        function setPromptGuidance(permission) {
+            if (permission === 'granted') {
+                promptGuidance.innerText = 'Notifications are enabled. You can now schedule alerts.';
+                promptGuidance.style.color = 'green';
+                return;
+            }
+
+            const location = getBrowserPromptLocation();
+            if (permission === 'denied') {
+                promptGuidance.innerText = 'Notifications were blocked. Open your browser site settings and allow notifications for this page.';
+                promptGuidance.style.color = 'darkred';
+            } else {
+                promptGuidance.innerText = `Click 'Allow' in the browser notification prompt ${location}.`;
+                promptGuidance.style.color = '#444';
+            }
         }
 
         function registerServiceWorker() {
@@ -203,7 +245,10 @@
         }
 
         requestBtn.addEventListener('click', () => {
+            promptRequested = true;
+            updatePermissionLabel();
             Notification.requestPermission().then(permission => {
+                promptRequested = false;
                 updatePermissionLabel();
                 if (permission === 'granted') {
                     registerServiceWorker().then(() => {
