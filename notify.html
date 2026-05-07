@@ -24,56 +24,202 @@
         <button id="request-btn" class="btn-request">Enable Notifications</button>
         <br>
         <button id="virus-btn" class="btn-virus" disabled>🚨 Generate Virus Warning</button>
+        <br>
+        <button id="schedule-btn" class="btn-virus" disabled>⏱️ Schedule 30s Alert</button>
+        <br>
+        <button id="cancel-btn" class="btn-request" disabled>✖️ Cancel Scheduled Alert</button>
         
         <p id="permission-text">Current Permission: <span id="perm-value">Unknown</span></p>
+        <p id="sw-status">Service worker status will appear here.</p>
+        <p id="schedule-status">No scheduled background alert.</p>
     </div>
 
     <script>
         const supportStatus = document.getElementById('support-status');
         const requestBtn = document.getElementById('request-btn');
         const virusBtn = document.getElementById('virus-btn');
+        const scheduleBtn = document.getElementById('schedule-btn');
+        const cancelBtn = document.getElementById('cancel-btn');
         const permValue = document.getElementById('perm-value');
+        const swStatus = document.getElementById('sw-status');
+        const scheduleStatus = document.getElementById('schedule-status');
 
-        // 1. Check for Support
-        if (!("Notification" in window)) {
-            supportStatus.innerText = "❌ Notifications NOT supported in this browser.";
-            supportStatus.style.color = "red";
-            requestBtn.disabled = true;
-        } else {
-            supportStatus.innerText = "✅ Notifications are supported!";
-            supportStatus.style.color = "green";
-            updatePermissionLabel();
+        const iconUrl = "https://cdn-icons-png.flaticon.com/512/753/753345.png";
+        const serviceWorkerSupported = 'serviceWorker' in navigator;
+        let swReady = false;
+        let scheduledTag = null;
+
+        const virusWarnings = [
+            {
+                title: "SYSTEM SECURITY ALERT",
+                body: "CRITICAL: 13 Viruses detected! Action required immediately to protect your files.",
+                tag: "virus-alert-1"
+            },
+            {
+                title: "SECURITY WARNING",
+                body: "Malware found on drive C:. Immediate action needed to avoid data loss.",
+                tag: "virus-alert-2"
+            },
+            {
+                title: "FINAL NOTICE",
+                body: "Your device is at risk. Click the security prompt to scan now.",
+                tag: "virus-alert-3"
+            }
+        ];
+
+        function setStatus(message, color = 'black') {
+            supportStatus.innerText = message;
+            supportStatus.style.color = color;
         }
 
         function updatePermissionLabel() {
             permValue.innerText = Notification.permission;
-            if (Notification.permission === "granted") {
-                virusBtn.disabled = false;
-                requestBtn.innerText = "Permission Granted";
-                requestBtn.disabled = true;
+            const granted = Notification.permission === 'granted';
+            virusBtn.disabled = !granted;
+            scheduleBtn.disabled = !granted || !serviceWorkerSupported || !swReady;
+            cancelBtn.disabled = !scheduledTag;
+            requestBtn.disabled = granted;
+            requestBtn.innerText = granted ? 'Permission Granted' : 'Enable Notifications';
+
+            if (!serviceWorkerSupported) {
+                swStatus.innerText = 'Service worker not supported in this browser.';
+                swStatus.style.color = 'darkred';
+            } else if (!swReady) {
+                swStatus.innerText = 'Service worker registering...';
+                swStatus.style.color = 'orange';
+            } else {
+                swStatus.innerText = 'Service worker ready for background scheduling.';
+                swStatus.style.color = 'green';
+            }
+
+            scheduleStatus.innerText = scheduledTag ? 'Scheduled background alert pending in 30 seconds.' : 'No scheduled background alert.';
+            scheduleStatus.style.color = scheduledTag ? 'darkorange' : 'black';
+        }
+
+        function registerServiceWorker() {
+            if (!serviceWorkerSupported) {
+                swStatus.innerText = 'Service worker unavailable.';
+                return Promise.resolve();
+            }
+
+            return navigator.serviceWorker.register('sw.js')
+                .then(() => navigator.serviceWorker.ready)
+                .then(() => {
+                    swReady = true;
+                    updatePermissionLabel();
+                })
+                .catch(error => {
+                    swStatus.innerText = 'Service worker registration failed.';
+                    swStatus.style.color = 'red';
+                    console.error('Service worker registration failed:', error);
+                });
+        }
+
+        function showNotification({ title, body, tag }) {
+            return new Notification(title, {
+                body,
+                icon: iconUrl,
+                badge: iconUrl,
+                tag,
+                renotify: true
+            });
+        }
+
+        function sendVirusWarnings() {
+            virusWarnings.forEach((warning, index) => {
+                setTimeout(() => {
+                    showNotification(warning);
+                }, index * 4000);
+            });
+        }
+
+        function scheduleBackgroundNotification() {
+            navigator.serviceWorker.ready.then(registration => {
+                const tag = 'scheduled-virus-alert';
+                const message = {
+                    type: 'SCHEDULE_NOTIFICATION',
+                    delayMs: 30000,
+                    title: 'Delayed Security Alert',
+                    body: 'Scheduled warning: scan and secure your device now.',
+                    icon: iconUrl,
+                    tag
+                };
+
+                if (registration.active) {
+                    registration.active.postMessage(message);
+                } else if (registration.waiting) {
+                    registration.waiting.postMessage(message);
+                } else if (registration.installing) {
+                    registration.installing.postMessage(message);
+                }
+
+                scheduledTag = tag;
+                updatePermissionLabel();
+                cancelBtn.disabled = false;
+                scheduleBtn.innerText = 'Scheduled in 30s';
+                setTimeout(() => {
+                    scheduleBtn.innerText = '⏱️ Schedule 30s Alert';
+                }, 2000);
+            });
+        }
+
+        function cancelScheduledNotification() {
+            if (!scheduledTag) {
+                return;
+            }
+
+            navigator.serviceWorker.ready.then(registration => {
+                const message = {
+                    type: 'CANCEL_NOTIFICATION',
+                    tag: scheduledTag
+                };
+
+                if (registration.active) {
+                    registration.active.postMessage(message);
+                } else if (registration.waiting) {
+                    registration.waiting.postMessage(message);
+                } else if (registration.installing) {
+                    registration.installing.postMessage(message);
+                }
+
+                scheduledTag = null;
+                updatePermissionLabel();
+                scheduleBtn.innerText = '⏱️ Schedule 30s Alert';
+            });
+        }
+
+        if (!('Notification' in window)) {
+            setStatus('❌ Notifications NOT supported in this browser.', 'red');
+            requestBtn.disabled = true;
+            virusBtn.disabled = true;
+            scheduleBtn.disabled = true;
+            swStatus.innerText = 'Notifications are unavailable.';
+        } else {
+            setStatus('✅ Notifications are supported!', 'green');
+            updatePermissionLabel();
+            if (Notification.permission === 'granted') {
+                registerServiceWorker();
             }
         }
 
-        // 2. Request Permission
         requestBtn.addEventListener('click', () => {
             Notification.requestPermission().then(permission => {
                 updatePermissionLabel();
-                if (permission === "granted") {
-                    new Notification("Success!", { body: "You will now receive notifications." });
+                if (permission === 'granted') {
+                    registerServiceWorker().then(() => {
+                        showNotification({
+                            title: 'Success!',
+                            body: 'You will now receive notifications.',
+                            tag: 'permission-granted'
+                        });
+                    });
                 }
             });
         });
 
-        // 3. Generate Fake Warning
-        virusBtn.addEventListener('click', () => {
-            const options = {
-                body: "CRITICAL: 13 Viruses detected! Action required immediately to protect your files.",
-                icon: "https://cdn-icons-png.flaticon.com/512/753/753345.png", // Red warning icon
-                tag: "virus-alert" // "tag" prevents multiple notifications from stacking
-            };
-
-            new Notification("SYSTEM SECURITY ALERT", options);
-        });
+        virusBtn.addEventListener('click', sendVirusWarnings);
+        scheduleBtn.addEventListener('click', scheduleBackgroundNotification);
+        cancelBtn.addEventListener('click', cancelScheduledNotification);
     </script>
 </body>
 </html>
